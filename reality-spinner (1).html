@@ -1,0 +1,1885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reality Spinner 🌀</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&family=Creepster&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-pink: #ff006e;
+    --neon-cyan: #00f5ff;
+    --neon-yellow: #ffbe0b;
+    --neon-green: #06ffa5;
+    --dark: #0a0a0f;
+    --glass: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    font-family: 'Orbitron', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  #cursor {
+    position: fixed; width: 20px; height: 20px;
+    border: 2px solid var(--neon-cyan); border-radius: 50%;
+    pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, border-color 0.3s, width 0.2s, height 0.2s;
+    mix-blend-mode: screen;
+  }
+  #cursor-dot {
+    position: fixed; width: 4px; height: 4px;
+    background: var(--neon-cyan); border-radius: 50%;
+    pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: background 0.3s;
+  }
+  #cursor.hover { width: 40px; height: 40px; border-color: var(--neon-pink); }
+
+  /* Canvas */
+  #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+
+  /* Overlay UI */
+  #ui {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 100;
+  }
+
+  /* HUD Top Bar */
+  #hud-top {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    pointer-events: all;
+  }
+
+  #logo {
+    font-size: 22px; font-weight: 900; letter-spacing: 3px;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: none; animation: logoPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes logoPulse {
+    0%,100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+  }
+
+  #stats {
+    display: flex; gap: 20px; align-items: center;
+  }
+
+  .stat-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--glass-border);
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 12px; color: #fff; letter-spacing: 1px;
+    backdrop-filter: blur(10px);
+  }
+  .stat-chip .icon { font-size: 14px; }
+  .stat-chip .val { color: var(--neon-yellow); font-weight: 700; }
+
+  /* XP Bar */
+  #xp-bar-wrap {
+    position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+    width: 280px;
+  }
+  #xp-label {
+    font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.4);
+    text-align: center; margin-bottom: 3px;
+  }
+  #xp-bar-bg {
+    height: 4px; background: rgba(255,255,255,0.1);
+    border-radius: 2px; overflow: hidden;
+  }
+  #xp-bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+    border-radius: 2px;
+    transition: width 0.8s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 0 8px var(--neon-cyan);
+  }
+
+  /* World Selector */
+  #world-selector {
+    position: fixed; bottom: 140px; right: 24px;
+    display: flex; flex-direction: column; gap: 10px;
+    pointer-events: all;
+  }
+
+  .world-btn {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s; position: relative;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  .world-btn:hover { transform: scale(1.15); border-color: var(--neon-cyan); }
+  .world-btn.active { border-color: var(--neon-cyan); box-shadow: 0 0 20px var(--neon-cyan); }
+  .world-btn.locked::after {
+    content: '🔒'; position: absolute; right: -4px; bottom: -4px;
+    font-size: 12px;
+  }
+  .world-tooltip {
+    position: absolute; right: 64px; top: 50%; transform: translateY(-50%);
+    background: rgba(0,0,0,0.9); border: 1px solid var(--glass-border);
+    padding: 6px 12px; border-radius: 8px; font-size: 10px;
+    white-space: nowrap; color: #fff; letter-spacing: 1px;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .world-btn:hover .world-tooltip { opacity: 1; }
+
+  /* Mode Selector */
+  #mode-selector {
+    position: fixed; bottom: 140px; left: 24px;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: all;
+  }
+
+  .mode-btn {
+    padding: 8px 16px; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+    cursor: pointer; font-family: 'Orbitron', monospace;
+    font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.6);
+    transition: all 0.3s; text-transform: uppercase;
+  }
+  .mode-btn:hover, .mode-btn.active {
+    border-color: var(--neon-yellow); color: var(--neon-yellow);
+    box-shadow: 0 0 15px rgba(255,190,11,0.3);
+  }
+
+  /* Task Card */
+  #task-card {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    width: min(500px, 90vw);
+    background: rgba(0,0,0,0.85);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px; padding: 20px 24px;
+    backdrop-filter: blur(20px);
+    pointer-events: all;
+    transition: all 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    display: none;
+  }
+
+  #task-card.show { display: block; animation: cardIn 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(40px) scale(0.9); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  }
+
+  #task-category {
+    font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  #task-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px; line-height: 1.6; color: #fff;
+    margin-bottom: 16px; min-height: 50px;
+  }
+
+  #task-actions {
+    display: flex; gap: 10px; align-items: center;
+  }
+
+  .task-btn {
+    flex: 1; padding: 10px; border-radius: 12px;
+    border: none; cursor: pointer;
+    font-family: 'Orbitron', monospace; font-size: 11px;
+    font-weight: 700; letter-spacing: 1px;
+    transition: all 0.2s; display: flex;
+    align-items: center; justify-content: center; gap: 6px;
+  }
+
+  #btn-done {
+    background: linear-gradient(135deg, var(--neon-green), #00c875);
+    color: #000;
+  }
+  #btn-done:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--neon-green); }
+
+  #btn-skip {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.5); flex: 0.6;
+    font-size: 10px;
+  }
+  #btn-skip:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  #btn-chaos {
+    background: linear-gradient(135deg, #ff006e, #ff4500);
+    color: #fff; flex: 0.8;
+  }
+  #btn-chaos:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--neon-pink); }
+
+  /* Orb hint */
+  #orb-hint {
+    position: fixed; bottom: 50%; left: 50%;
+    transform: translate(-50%, 80px);
+    text-align: center; pointer-events: none;
+    transition: opacity 1s;
+  }
+  #orb-hint p {
+    font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.4);
+    animation: float 2s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  /* Notification/Popup */
+  #popup {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.9); border: 1px solid var(--neon-pink);
+    border-radius: 12px; padding: 12px 24px;
+    font-size: 13px; color: #fff; letter-spacing: 1px;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    box-shadow: 0 0 30px rgba(255,0,110,0.4);
+    text-align: center; max-width: 350px; z-index: 200;
+  }
+  #popup.show {
+    opacity: 1; animation: popupIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes popupIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.9); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  }
+
+  /* Level Up overlay */
+  #levelup-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 300; pointer-events: none;
+    opacity: 0; transition: all 0.5s;
+  }
+  #levelup-overlay.show {
+    opacity: 1; background: rgba(0,0,0,0.6);
+    pointer-events: all;
+    animation: levelUp 2.5s forwards;
+  }
+  @keyframes levelUp {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  #levelup-text {
+    font-size: 60px; font-weight: 900;
+    background: linear-gradient(90deg, var(--neon-yellow), var(--neon-pink), var(--neon-cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-align: center; letter-spacing: 4px;
+    animation: levelPulse 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes levelPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.05); }
+  }
+
+  /* Glitch overlay */
+  #glitch-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 500;
+    opacity: 0; background: transparent;
+  }
+  #glitch-overlay.active {
+    animation: glitch 0.5s steps(2) forwards;
+  }
+  @keyframes glitch {
+    0% { opacity: 0; }
+    10% { opacity: 1; background: rgba(0,245,255,0.05); transform: translateX(-3px); }
+    20% { opacity: 0.5; background: rgba(255,0,110,0.05); transform: translateX(3px); }
+    30% { opacity: 1; background: rgba(0,245,255,0.08); transform: translateX(-2px) skewX(2deg); }
+    40% { opacity: 0; }
+    50% { opacity: 0.8; background: rgba(255,0,110,0.06); transform: translateX(2px); }
+    100% { opacity: 0; transform: none; }
+  }
+
+  /* Intro screen */
+  #intro {
+    position: fixed; inset: 0;
+    background: #000;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.8s, transform 0.8s;
+  }
+  #intro h1 {
+    font-size: clamp(40px, 8vw, 80px);
+    font-weight: 900; letter-spacing: 6px;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-yellow));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-align: center; margin-bottom: 10px;
+    animation: titleGlow 2s ease-in-out infinite alternate;
+  }
+  @keyframes titleGlow {
+    from { filter: drop-shadow(0 0 20px rgba(0,245,255,0.5)); }
+    to { filter: drop-shadow(0 0 40px rgba(255,0,110,0.5)); }
+  }
+  #intro p {
+    font-family: 'Space Mono', monospace;
+    color: rgba(255,255,255,0.5); font-size: 13px;
+    letter-spacing: 3px; margin-bottom: 50px; text-align: center;
+  }
+  #start-btn {
+    padding: 16px 48px; font-family: 'Orbitron', monospace;
+    font-size: 14px; font-weight: 700; letter-spacing: 3px;
+    background: transparent;
+    border: 2px solid var(--neon-cyan);
+    color: var(--neon-cyan); border-radius: 4px;
+    cursor: pointer; text-transform: uppercase;
+    position: relative; overflow: hidden;
+    transition: all 0.3s;
+  }
+  #start-btn::before {
+    content: ''; position: absolute; inset: 0;
+    background: var(--neon-cyan); transform: translateX(-100%);
+    transition: transform 0.3s;
+  }
+  #start-btn:hover { color: #000; }
+  #start-btn:hover::before { transform: translateX(0); }
+  #start-btn span { position: relative; z-index: 1; }
+
+  .intro-particles {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  }
+  .ipart {
+    position: absolute; width: 2px; height: 2px;
+    background: var(--neon-cyan); border-radius: 50%;
+    animation: ipartFloat linear infinite;
+    opacity: 0;
+  }
+  @keyframes ipartFloat {
+    0% { transform: translateY(100vh); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-10vh); opacity: 0; }
+  }
+
+  /* Streak badge */
+  #streak-badge {
+    position: fixed; top: 80px; left: 24px;
+    background: linear-gradient(135deg, #ff4500, #ff006e);
+    border-radius: 12px; padding: 8px 14px;
+    font-size: 11px; letter-spacing: 1px; color: #fff;
+    box-shadow: 0 0 20px rgba(255,69,0,0.4);
+    transition: all 0.5s;
+    opacity: 0;
+  }
+  #streak-badge.show { opacity: 1; }
+
+  /* World unlock toast */
+  #unlock-toast {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.95);
+    border: 2px solid var(--neon-yellow);
+    border-radius: 20px; padding: 30px 40px;
+    text-align: center; z-index: 400;
+    box-shadow: 0 0 60px rgba(255,190,11,0.5);
+    opacity: 0; pointer-events: none; transition: opacity 0.5s;
+  }
+  #unlock-toast.show { opacity: 1; pointer-events: all; }
+  #unlock-toast h2 { font-size: 24px; color: var(--neon-yellow); margin-bottom: 8px; }
+  #unlock-toast p { font-family: 'Space Mono'; font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 20px; }
+  #unlock-ok {
+    padding: 10px 30px; background: var(--neon-yellow); color: #000;
+    border: none; border-radius: 8px; cursor: pointer;
+    font-family: 'Orbitron'; font-weight: 700; font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  /* Scanlines effect */
+  #scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 50;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+    );
+    animation: scanAnim 8s linear infinite;
+  }
+  @keyframes scanAnim {
+    from { background-position: 0 0; }
+    to { background-position: 0 100vh; }
+  }
+
+  /* World transition */
+  #world-transition {
+    position: fixed; inset: 0; z-index: 600;
+    background: #000; opacity: 0; pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  #world-transition.in { opacity: 1; }
+
+  .hidden { display: none !important; }
+
+  /* Skip counter badge */
+  .skip-badge {
+    position: absolute; top: -6px; right: -6px;
+    width: 18px; height: 18px; background: var(--neon-pink);
+    border-radius: 50%; font-size: 9px; display: flex;
+    align-items: center; justify-content: center; font-weight: 700;
+  }
+
+  /* Easter egg hint */
+  #easter-hint {
+    position: fixed; bottom: 20px; right: 24px;
+    font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.15);
+    pointer-events: none; font-family: 'Space Mono';
+  }
+</style>
+</head>
+<body>
+
+<!-- Cursor -->
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+
+<!-- Intro Screen -->
+<div id="intro">
+  <div class="intro-particles" id="intro-particles"></div>
+  <h1>REALITY<br>SPINNER</h1>
+  <p>⚡ SPIN THE REAL WORLD ⚡</p>
+  <button id="start-btn" onclick="startGame()"><span>ENTER THE VOID</span></button>
+</div>
+
+<!-- Main Canvas -->
+<canvas id="canvas"></canvas>
+
+<!-- Scanlines -->
+<div id="scanlines"></div>
+
+<!-- Glitch Overlay -->
+<div id="glitch-overlay"></div>
+
+<!-- World Transition -->
+<div id="world-transition"></div>
+
+<!-- UI Layer -->
+<div id="ui">
+  <!-- Top HUD -->
+  <div id="hud-top">
+    <div id="logo">REALITY SPINNER</div>
+    <div id="stats">
+      <div class="stat-chip"><span class="icon">⚡</span><span>LVL</span><span class="val" id="stat-level">1</span></div>
+      <div class="stat-chip"><span class="icon">🎯</span><span>XP</span><span class="val" id="stat-xp">0</span></div>
+      <div class="stat-chip"><span class="icon">✅</span><span>DONE</span><span class="val" id="stat-done">0</span></div>
+    </div>
+  </div>
+
+  <!-- XP Bar -->
+  <div id="xp-bar-wrap">
+    <div id="xp-label">XP TO NEXT LEVEL</div>
+    <div id="xp-bar-bg"><div id="xp-bar-fill"></div></div>
+  </div>
+
+  <!-- Streak Badge -->
+  <div id="streak-badge">🔥 <span id="streak-val">0</span> DAY STREAK</div>
+
+  <!-- World Selector -->
+  <div id="world-selector">
+    <div class="world-btn active" data-world="sky" onclick="switchWorld('sky')">
+      ☁️<div class="world-tooltip">CHILL SKY ISLAND</div>
+    </div>
+    <div class="world-btn locked" data-world="horror" id="btn-horror" onclick="tryWorld('horror')">
+      🌲<div class="world-tooltip">DARK HORROR FOREST</div>
+    </div>
+    <div class="world-btn locked" data-world="cyber" id="btn-cyber" onclick="tryWorld('cyber')">
+      🌆<div class="world-tooltip">NEON CYBER CITY</div>
+    </div>
+  </div>
+
+  <!-- Mode Selector -->
+  <div id="mode-selector">
+    <div class="mode-btn active" data-mode="chill" onclick="setMode('chill')">😌 CHILL</div>
+    <div class="mode-btn" data-mode="chaos" onclick="setMode('chaos')">💥 CHAOS</div>
+    <div class="mode-btn" data-mode="social" onclick="setMode('social')">👥 SOCIAL</div>
+  </div>
+
+  <!-- Orb Hint -->
+  <div id="orb-hint">
+    <p>▼ CLICK THE ORB ▼</p>
+  </div>
+
+  <!-- Task Card -->
+  <div id="task-card">
+    <div id="task-category">CATEGORY</div>
+    <div id="task-text">Loading task...</div>
+    <div id="task-actions">
+      <button class="task-btn" id="btn-done" onclick="completeTask()">✅ DONE <small>(+XP)</small></button>
+      <button class="task-btn" id="btn-chaos" onclick="chaosBoost()">🔥 CHAOS</button>
+      <button class="task-btn" id="btn-skip" style="position:relative" onclick="skipTask()">
+        ⏭ SKIP
+        <span class="skip-badge" id="skip-count">3</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Popup -->
+  <div id="popup"></div>
+
+  <!-- Level Up Overlay -->
+  <div id="levelup-overlay">
+    <div>
+      <div id="levelup-text">LEVEL UP!</div>
+      <p style="color:rgba(255,255,255,0.5);font-size:12px;text-align:center;letter-spacing:3px;margin-top:10px;font-family:'Space Mono'">TAP TO CONTINUE</p>
+    </div>
+  </div>
+
+  <!-- Unlock Toast -->
+  <div id="unlock-toast">
+    <h2>🔓 UNLOCKED!</h2>
+    <p id="unlock-msg">New world unlocked!</p>
+    <button id="unlock-ok" onclick="closeUnlock()">SICK 🤙</button>
+  </div>
+</div>
+
+<!-- Easter Egg Hint -->
+<div id="easter-hint">[ click everything... ]</div>
+
+<script>
+// ============================================================
+// TASK DATABASE (1000+ tasks)
+// ============================================================
+const TASKS = {
+  chill: [
+    "Drink water like a dramatic anime character",
+    "Take a 5-minute walk outside and count the colors you see",
+    "Send someone a meme that made you laugh this week",
+    "Organize one drawer or shelf right now",
+    "Write down 3 things you're grateful for today",
+    "Stretch for 60 seconds — arms, neck, back",
+    "Take a deep breath. Hold it. Let it go. Do that 5 times",
+    "Put your phone down and stare at the ceiling for 30 seconds",
+    "Make your bed if you haven't yet. It changes things",
+    "Text someone 'hey' and nothing else. See what happens",
+    "Close 10 browser tabs you've been meaning to close",
+    "Make yourself a hot drink and just sit with it",
+    "Look out the window for a full minute without your phone",
+    "Set an alarm for 8 hours of sleep tonight",
+    "Eat one piece of fruit right now",
+    "Change your phone wallpaper to something that makes you smile",
+    "Stand up and touch your toes (or try to)",
+    "Reply to one message you've been avoiding",
+    "Dim your lights and exist for 3 minutes",
+    "Delete 5 apps you never use",
+    "Smell something nice — candle, food, outside air",
+    "Write your own name in your best handwriting",
+    "Make eye contact with yourself in the mirror for 10 seconds",
+    "Clean your glasses or phone screen",
+    "Take 5 photos of things around you right now",
+    "Hum your favorite song for 30 seconds",
+    "Wiggle your toes and appreciate them",
+    "Read 3 pages of any book",
+    "Do nothing for exactly 2 minutes. Just breathe",
+    "Make a playlist of 5 songs that hit different at night",
+    "Compliment the next person you see",
+    "Open your notes and write one random thought",
+    "Change into comfortable clothes if you haven't",
+    "Organize your desktop icons into one folder",
+    "Watch the clouds for 60 seconds. Find one that looks like something",
+    "Journal for 3 minutes — no rules, just write",
+    "Pet an animal if one is nearby",
+    "Wash your face with cold water",
+    "Light a candle or turn on a lamp instead of overhead lights",
+    "Sit in complete silence for 90 seconds",
+    "Water a plant. If you have none, consider getting one",
+    "Eat your next meal without scrolling",
+    "Step outside and just stand there for a minute",
+    "Doodle something — literally anything — for 2 minutes",
+    "Put on your favorite song and just listen, don't multitask",
+    "Open a window and breathe some fresh air",
+    "Clean one thing that's been bothering you",
+    "Give yourself a 10-second shoulder massage",
+    "Close your eyes and count backwards from 20",
+    "Think of one person who's made your life better. Text them",
+    "Do 10 slow, deep belly breaths",
+    "Take a 3-minute digital detox — put the phone face down",
+    "Reorganize your photos into one folder",
+    "Try to touch your elbows behind your back (good luck)",
+    "Write a 2-sentence story about your day so far",
+    "Move to a different spot in your home and just sit there",
+    "List 5 things you can see, 4 you can touch, 3 you can hear",
+    "Set a 'no screens after 10pm' intention for tonight",
+    "Take off your shoes and feel the floor beneath your feet",
+    "Appreciate the silence for exactly one minute",
+    "Write the last dream you remember",
+    "Pick up any random book and read the first sentence you land on",
+    "Shake out your hands and arms like you're air-drying them",
+    "Smile at yourself in the mirror. No, like, actually smile",
+    "Close your eyes and visualize your ideal day",
+    "Roll your shoulders backwards 10 times",
+    "Put something away that you've been meaning to deal with",
+    "Look at your oldest photo on your phone and remember that day",
+    "Drink a full glass of water before you do anything else",
+    "Write a word that describes today",
+    "Do one kind thing for yourself right now",
+    "Tidy up your desk or workspace for 5 minutes",
+    "Sit in a chair and just exist for 2 minutes — no content",
+    "Find something beautiful in your immediate environment",
+    "Tell someone 'I appreciate you' today",
+    "Watch the sky for 2 minutes — note what you see",
+    "Delete unused contacts from your phone",
+    "Look at one old conversation and feel the nostalgia",
+    "Breathe in for 4 counts, hold for 4, out for 8. Repeat 3x",
+    "Plan something to look forward to this week",
+    "Put your headphones in and listen to rain sounds for 5 minutes",
+    "Do a slow lap around wherever you are",
+    "Take your shoes off at home. Let your feet relax",
+    "Put your to-do list in priority order",
+    "Find one item to donate or throw away",
+    "Sit by a window and watch life happen outside",
+    "Do one thing slowly and intentionally — make tea, fold clothes",
+    "Save one song that you heard today",
+    "Write a sentence about where you want to be in 6 months",
+    "Say something nice about yourself out loud",
+    "Take a cold shower if you dare. 30 seconds minimum",
+    "Make your space smell good — open a window, spray something",
+    "Check in with your body: where is tension? Release it",
+    "Find a quiet spot and just breathe for 3 minutes",
+    "Notice five things you normally ignore in your environment",
+    "Close your apps. All of them. Just for 10 minutes",
+    "Send an unsolicited compliment via text right now",
+    "Eat a snack mindfully — no screen, full attention on the taste",
+    "Put your phone in another room for the next 20 minutes",
+    "Draw a small doodle of how you feel right now",
+  ],
+
+  chaos: [
+    "Text 'I have a plan' to someone and don't explain",
+    "Walk around like you're in a slow-motion movie for 60 seconds",
+    "Reply to the next social media comment with only '🤔'",
+    "Do your best impression of a news anchor for 30 seconds",
+    "Put on sunglasses and don't explain why for an hour",
+    "Open your gallery and delete 5 useless screenshots",
+    "Change your alarm sound to something chaotic",
+    "Text your best friend 'we need to talk' then send 'jk lol' immediately after",
+    "Say 'per my last message' in any conversation today",
+    "Start a group chat called 'emergency meeting' and send a meme",
+    "Do 5 push-ups right now. No excuses. Right now",
+    "Open your fridge and stare at it for 30 seconds then close it",
+    "Walk backwards for 20 steps",
+    "Do your best robot dance for exactly 10 seconds",
+    "Read the last message you sent out loud in a British accent",
+    "Google something you've been too embarrassed to ask anyone",
+    "Text 'you up?' to a friend at any time of day",
+    "Narrate your next 2 minutes out loud like a documentary",
+    "Change your contact name in your own phone to something chaotic",
+    "Do a dramatic reading of your grocery list",
+    "Walk into a room and immediately walk back out",
+    "Say 'interesting, interesting' while nodding slowly, for no reason",
+    "Text someone 'did you see what just happened' and wait",
+    "Put an object somewhere slightly wrong and see how long it takes someone to notice",
+    "Open YouTube and click the 37th video in your history",
+    "Tell your family pet your problems very seriously",
+    "Act like you just won an Oscar for the next 30 seconds",
+    "Do a power pose for 10 seconds right now",
+    "Add something random to your calendar for a month from now",
+    "Respond to the next 3 texts with emojis only",
+    "Do an evil laugh. A real one. Commit to it",
+    "Write your name with your non-dominant hand and post it somewhere",
+    "Attempt to moonwalk across the room",
+    "Make up a fake word and use it in the next conversation",
+    "Dramatically look both ways before opening a door",
+    "Do a 30-second infomercial for an object near you",
+    "Talk about your least favorite task like it's the most exciting thing ever",
+    "Do 10 jumping jacks but make each one look surprised",
+    "Strike a superhero pose in front of the nearest window",
+    "Change your group chat name to something legendary right now",
+    "Set a reminder called 'remember the mission' for tomorrow at 3pm",
+    "Speak in rhymes for the next 3 minutes. No excuses",
+    "Call something 'lowkey iconic' in the next conversation",
+    "Give an award speech for completing your last task",
+    "Do a slow clap by yourself for no reason",
+    "Text someone '👀' and absolutely nothing else",
+    "Walk to the nearest mirror and point finger guns at yourself",
+    "Write a strongly worded letter about something trivial",
+    "Pretend you're a Youtuber starting a video — do the intro",
+    "Make a decision by rolling dice (or tapping a random number)",
+    "Respond to the next email/text as if you're a medieval knight",
+    "Put on a song and just vibe intensely for exactly 1 minute",
+    "Do a dramatic slow-turn when someone says your name",
+    "Announce what you're about to do before you do it",
+    "Act like everything is in slow motion for 90 seconds",
+    "Do your best movie villain laugh",
+    "Text your friend group 'the prophecy is real' — say nothing else",
+    "Open your calendar and add 'lore meeting' to any date",
+    "Do a running commentary on what your hands are doing",
+    "Clap exactly once, loudly, at a random moment",
+    "Do the worm. Or try to. Both outcomes are entertaining",
+    "Call your friend and greet them as if you haven't spoken in years",
+    "Set your phone autocorrect to change 'the' to 'thee'",
+    "Rate the nearest object out of 10 with a full explanation",
+    "Act like a background character in someone else's story",
+    "Challenge someone near you to a staring contest",
+    "Do a TikTok transition in real life — alone",
+    "Text someone 'I've been thinking about what you said' and wait for them to panic",
+    "Narrate your next walk somewhere as if it's a nature documentary",
+    "Look up and find a celebrity who shares your birthday",
+    "Write a 5-star review of your last meal, even if it was cereal",
+    "Walk into the next room like you own it. You're the CEO",
+    "Make a list of your top 3 unhinged opinions and share one",
+    "Attempt to recreate a famous movie scene with objects nearby",
+    "Text someone a random Wikipedia article with 'thought you should see this'",
+    "Write your autobiography title right now",
+    "Do a dramatic scene of opening a fridge and finding nothing you want",
+    "Text '📊' to someone and watch the confusion unfold",
+    "Change your ringtone to something wildly inappropriate for your vibe",
+    "Make a sound effect for every action you take for 60 seconds",
+    "Do 3 star jumps but make each one look like it was unexpected",
+    "Reply to something with 'I see you've played knifey-spoony before'",
+    "Compose a haiku about your current situation right now",
+    "Rate every person in your contacts as a Pokémon (at least 3)",
+    "Attempt the floor is lava alone in your room",
+    "Start a new notes document titled 'evidence' and leave it empty",
+    "Do a heel-click when you walk through the next doorway",
+    "Assign everyone at home a codename and only use that",
+    "Recite your address backwards. Time yourself",
+    "Set an alarm for 4:44am labeled 'THE ALIGNMENT' then delete it",
+    "Open an incognito tab and close it without typing anything",
+    "Do 60 seconds of freestyle rapping about your day",
+    "Write a tweet-length review of air",
+    "Text your most chaotic friend 'it's time'",
+    "Stand outside your room and knock before entering",
+    "Speak entirely in questions for the next 3 minutes",
+    "Do a trust fall alone. Just fall gently onto a bed. Believe in yourself",
+    "Start every sentence with 'As predicted...' for 5 minutes",
+    "Find the oldest screenshot on your phone and send it to its subject",
+    "Pretend to be a GPS narrator until you arrive at your destination",
+    "Set your alarm label to a cryptic message for future you",
+  ],
+
+  social: [
+    "Tell someone nearby something you genuinely appreciate about them",
+    "Send a voice note instead of a text to someone today",
+    "Check in on the friend you haven't spoken to in the longest",
+    "Tell a family member something nice about their laugh",
+    "Plan something — even small — with a friend this week",
+    "Tell someone about a memory of them that made you happy",
+    "Ask someone 'how are you actually doing?' and really listen",
+    "Send your best friend their contact photo and say it's accurate",
+    "Call your parents or siblings just to say hey",
+    "Tag someone in a meme and add a personal note",
+    "Write a real compliment on someone's recent post",
+    "Message an old friend a song you think they'd love",
+    "Tell someone about a book, show, or song that changed your life",
+    "Ask someone what their favorite childhood memory is",
+    "Send someone a TikTok that perfectly describes them",
+    "Introduce two of your friends who would get along",
+    "Give a compliment in person to the next person you see",
+    "Ask someone what they're excited about right now",
+    "Bring someone a coffee or snack without being asked",
+    "Teach someone one random thing you know really well",
+    "Ask for advice from someone you respect",
+    "Tell a dad joke to the next person you see and commit to it",
+    "Share something you've been working on with someone",
+    "Ask someone what their hot take is on something random",
+    "Respond to a friend's story with an actual comment, not just a react",
+    "Start a fun debate in your group chat (pineapple on pizza?)",
+    "Make plans to video call a long-distance friend this week",
+    "Send your group chat a 'throwback' photo or memory",
+    "Tell someone what song you think is the anthem of their life",
+    "Ask someone what superpower they'd want and share yours",
+    "DM someone who's been posting sad things to check in",
+    "Ask someone their most underrated recommendation (movie, food, etc)",
+    "Create a collaborative playlist with someone",
+    "Send a voicemail-style message just catching up",
+    "Tell someone what you think their spirit animal is",
+    "Plan a movie night — in person or virtual — this week",
+    "Share your embarrassing moment from this week with a friend",
+    "Send someone a photo from a shared memory and caption it",
+    "Ask your oldest friend their funniest memory of you",
+    "Let someone borrow something they've been needing",
+    "Tell someone they've been doing an amazing job lately",
+    "Create a challenge for your friends — who joins fastest?",
+    "Ask someone what they'd do with an unexpected free day",
+    "Text someone 'I'm proud of you' and mean it completely",
+    "Make a 'this is so you' playlist and share it",
+    "Ask a family member to tell you a story from before you were born",
+    "Invite someone on a walk, even a 10-minute one",
+    "Ask someone their most controversial opinion on a harmless topic",
+    "Share a skill with someone — teach them one thing today",
+    "Text a group 'who wants to play a game' and start something",
+    "Ask someone what they'd tell their 16-year-old self",
+    "Share your genuine reaction to something you've watched recently",
+    "Organize a 'no phones at dinner' meal with someone",
+    "Ask a friend what they've been listening to on repeat",
+    "Tell someone their energy is something you always look forward to",
+    "Ask someone their biggest dream right now",
+    "Introduce yourself to someone new if the opportunity arises today",
+    "Text someone you've been meaning to reconnect with: just 'hey!'",
+    "React to your friend's last 5 posts genuinely",
+    "Ask someone about something they mentioned weeks ago — show you remembered",
+    "Make someone laugh today. That's the whole task",
+    "Ask for someone's honest opinion on something you're working on",
+    "Invite someone to join you in today's task. Chaos together",
+    "Do something kind for a stranger today — even just hold a door",
+    "Tell someone what you think their best quality is",
+    "Write and actually send a letter or long message to someone",
+    "Call someone instead of texting — the old way",
+    "Ask a friend to rate your current music taste 1-10",
+    "Send your family group chat a selfie with a caption",
+    "Tell your most chaotic friend you respect their chaos",
+    "Ask someone 'what's something nobody knows about you?'",
+    "Cook something simple and share it with someone",
+    "Ask a friend what's been stressing them out lately — actually listen",
+    "Share a fear you've been working through with someone you trust",
+    "Text someone: 'I was thinking about you today'",
+    "Plan a watch party — just you and one friend, same time",
+    "Ask someone what they think your superpower is",
+    "Challenge a friend to do this same task — share Reality Spinner",
+    "Leave a nice comment on a creator's content you enjoy",
+    "Ask your friends what they think your best era was",
+    "Tell someone about a goal you're working on — out loud, to them",
+    "Send a friend a throwback meme from an inside joke",
+    "Plan something ridiculous to do with a friend — no reason needed",
+    "Ask someone what they'd want written on their hypothetical gravestone",
+    "Send your best friend a voice message saying something real",
+    "Share something you're proud of that nobody has seen yet",
+    "Ask: 'what's something you've changed your mind about recently?'",
+    "Tell someone 'you give great advice' — and tell them why",
+    "Ask someone what they'd do if they could be invisible for a day",
+    "Make up a handshake with someone in your home",
+    "Tell a coworker or classmate you appreciate their effort",
+    "Ask your oldest friend: 'do you remember when we...'",
+    "Organize a random poll in your group chat",
+    "Text someone a 'good morning' you never usually send",
+    "Share something funny that happened to you with someone today",
+    "Ask a parent or elder: 'what's the best decision you ever made?'",
+    "Respond to every text for the next hour with full sentences",
+    "Create a fun nickname for someone in your contacts and tell them",
+  ],
+
+  legendary: [
+    "⚡ LEGENDARY: Go outside, find a stranger, give them a genuine compliment",
+    "⚡ LEGENDARY: Set a 5am alarm. Wake up with it. Do one thing before 6am",
+    "⚡ LEGENDARY: Write a letter to yourself 5 years from now. Save it",
+    "⚡ LEGENDARY: Tell someone your deepest current ambition",
+    "⚡ LEGENDARY: Do something you've been procrastinating for 2 weeks right now",
+    "⚡ LEGENDARY: Make a decision you've been avoiding. It's time",
+    "⚡ LEGENDARY: Film a 60-second video of your day and watch it back",
+    "⚡ LEGENDARY: Write down your 3 biggest fears. Then rate them 1-10 on likelihood",
+    "⚡ LEGENDARY: Try one thing you've always said 'maybe someday' about",
+    "⚡ LEGENDARY: Call a family member and say something you always mean to say",
+    "⚡ LEGENDARY: Start something new today. Anything. A journal, a project, a habit",
+    "⚡ LEGENDARY: Go 24 hours without complaining about anything",
+    "⚡ LEGENDARY: Delete social media for exactly 48 hours. For real",
+    "⚡ LEGENDARY: Write your personal code of honor — 5 rules you live by",
+    "⚡ LEGENDARY: Do the hardest task on your to-do list first thing tomorrow",
+  ]
+};
+
+// Flatten all tasks into arrays by mode
+const ALL_TASKS = [...TASKS.chill, ...TASKS.chaos, ...TASKS.social, ...TASKS.legendary];
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let gameStarted = false;
+
+let state = {
+  level: 1,
+  xp: 0,
+  xpToNext: 100,
+  done: 0,
+  skipsLeft: 3,
+  streak: 0,
+  lastPlayed: null,
+  completedTasks: [],
+  skippedTasks: [],
+  unlockedWorlds: ['sky'],
+  currentWorld: 'sky',
+  currentMode: 'chill',
+  currentTask: null,
+  taskActive: false,
+  easterEggs: []
+};
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('rs_state');
+    if (saved) {
+      const s = JSON.parse(saved);
+      Object.assign(state, s);
+      // Check daily streak
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      if (state.lastPlayed && state.lastPlayed !== today) {
+        if (state.lastPlayed === yesterday) {
+          // Streak continues
+        } else {
+          state.streak = 0;
+        }
+      }
+    }
+  } catch(e) { console.log('Fresh start!'); }
+}
+
+function saveState() {
+  state.lastPlayed = new Date().toDateString();
+  localStorage.setItem('rs_state', JSON.stringify(state));
+}
+
+// ============================================================
+// THREE.JS SCENE
+// ============================================================
+let scene, camera, renderer, orb, orbRing, orbParticles, worldObjects = [];
+let animFrameId, clock;
+let mouseX = 0, mouseY = 0;
+let orbHovered = false;
+let currentWorldConfig = null;
+
+const WORLD_CONFIGS = {
+  sky: {
+    bg: 0x87CEEB,
+    fog: { color: 0xc9e8ff, near: 30, far: 120 },
+    ambientColor: 0xffffff,
+    ambientIntensity: 0.8,
+    dirColor: 0xfff5e0,
+    orbColor: 0x00bfff,
+    orbGlow: 0x87ceeb,
+    name: 'Sky Island'
+  },
+  horror: {
+    bg: 0x0a0a0e,
+    fog: { color: 0x0a1a0a, near: 15, far: 60 },
+    ambientColor: 0x102010,
+    ambientIntensity: 0.3,
+    dirColor: 0x40ff40,
+    orbColor: 0xff2200,
+    orbGlow: 0x220000,
+    name: 'Horror Forest'
+  },
+  cyber: {
+    bg: 0x000520,
+    fog: { color: 0x000520, near: 20, far: 100 },
+    ambientColor: 0x001040,
+    ambientIntensity: 0.4,
+    dirColor: 0x00ffff,
+    orbColor: 0xff00ff,
+    orbGlow: 0x440044,
+    name: 'Cyber City'
+  }
+};
+
+function initThree() {
+  scene = new THREE.Scene();
+  clock = new THREE.Clock();
+
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.set(0, 2, 14);
+
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: false, alpha: false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.shadowMap.enabled = false;
+
+  buildWorld(state.currentWorld);
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // Raycaster for orb click
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  window.addEventListener('click', (e) => {
+    if (!gameStarted) return;
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    const orbHit = hits.find(h => h.object === orb || h.object.userData.isOrbHit);
+    if (orbHit) {
+      spawnTask();
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseY = -(e.clientY / window.innerHeight - 0.5) * 2;
+
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const mhits = raycaster.intersectObjects(scene.children, true);
+    const cursor = document.getElementById('cursor');
+    orbHovered = mhits.some(h => h.object === orb || h.object.userData.isOrbHit);
+    if (orbHovered) cursor.classList.add('hover');
+    else cursor.classList.remove('hover');
+  });
+}
+
+function buildWorld(worldId) {
+  // Clear previous world objects
+  worldObjects.forEach(o => scene.remove(o));
+  worldObjects = [];
+
+  const cfg = WORLD_CONFIGS[worldId];
+  currentWorldConfig = cfg;
+
+  scene.background = new THREE.Color(cfg.bg);
+  scene.fog = new THREE.Fog(cfg.fog.color, cfg.fog.near, cfg.fog.far);
+
+  const ambient = new THREE.AmbientLight(cfg.ambientColor, cfg.ambientIntensity);
+  scene.add(ambient);
+  worldObjects.push(ambient);
+
+  const dir = new THREE.DirectionalLight(cfg.dirColor, 1.2);
+  dir.position.set(5, 10, 5);
+  scene.add(dir);
+  worldObjects.push(dir);
+
+  // Create orb (central object)
+  const orbGeo = new THREE.IcosahedronGeometry(1.2, 2);
+  const orbMat = new THREE.MeshPhongMaterial({
+    color: cfg.orbColor,
+    emissive: cfg.orbColor,
+    emissiveIntensity: 0.4,
+    shininess: 100,
+    transparent: true,
+    opacity: 0.9,
+    wireframe: false
+  });
+  orb = new THREE.Mesh(orbGeo, orbMat);
+  orb.position.set(0, 1, 0);
+  scene.add(orb);
+
+  // Invisible larger hit sphere for easier clicking
+  const hitGeo = new THREE.SphereGeometry(2.0, 8, 8);
+  const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const hitSphere = new THREE.Mesh(hitGeo, hitMat);
+  hitSphere.position.set(0, 1, 0);
+  hitSphere.userData.isOrbHit = true;
+  scene.add(hitSphere);
+  worldObjects.push(hitSphere);
+
+  // Orb ring
+  const ringGeo = new THREE.TorusGeometry(2, 0.06, 8, 32);
+  const ringMat = new THREE.MeshPhongMaterial({ color: cfg.orbColor, emissive: cfg.orbColor, emissiveIntensity: 0.8 });
+  orbRing = new THREE.Mesh(ringGeo, ringMat);
+  orbRing.position.copy(orb.position);
+  orbRing.rotation.x = Math.PI / 4;
+  scene.add(orbRing);
+
+  // Second ring
+  const ring2 = new THREE.Mesh(
+    new THREE.TorusGeometry(2.5, 0.03, 8, 32),
+    new THREE.MeshPhongMaterial({ color: cfg.orbColor, emissive: cfg.orbColor, emissiveIntensity: 0.5 })
+  );
+  ring2.position.copy(orb.position);
+  ring2.rotation.x = -Math.PI / 3;
+  ring2.rotation.z = Math.PI / 6;
+  scene.add(ring2);
+  worldObjects.push(ring2);
+
+  // World-specific elements
+  if (worldId === 'sky') buildSkyWorld();
+  else if (worldId === 'horror') buildHorrorWorld();
+  else if (worldId === 'cyber') buildCyberWorld();
+
+  // Floating particles
+  buildParticles(cfg.orbColor, worldId);
+}
+
+function buildSkyWorld() {
+  const cfg = currentWorldConfig;
+
+  // Ground platform / island
+  const islandGeo = new THREE.CylinderGeometry(8, 5, 1.5, 8);
+  const islandMat = new THREE.MeshPhongMaterial({ color: 0x7ecb8f });
+  const island = new THREE.Mesh(islandGeo, islandMat);
+  island.position.set(0, -3, 0);
+  scene.add(island);
+  worldObjects.push(island);
+
+  // Dirt layer
+  const dirtGeo = new THREE.CylinderGeometry(7.8, 4.8, 0.8, 8);
+  const dirtMat = new THREE.MeshPhongMaterial({ color: 0x8b6914 });
+  const dirt = new THREE.Mesh(dirtGeo, dirtMat);
+  dirt.position.set(0, -4.2, 0);
+  scene.add(dirt);
+  worldObjects.push(dirt);
+
+  // Floating clouds
+  function makeCloud(x, y, z, scale) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+    [
+      [0, 0, 0, 1.2], [-1.2, -0.2, 0, 0.9], [1.2, -0.2, 0, 0.9],
+      [0, 0.4, 0, 0.8], [-0.6, 0.3, 0, 0.7]
+    ].forEach(([cx, cy, cz, r]) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r * scale, 6, 4), mat);
+      m.position.set(cx * scale, cy * scale, cz * scale);
+      group.add(m);
+    });
+    group.position.set(x, y, z);
+    group.userData.floatOffset = Math.random() * Math.PI * 2;
+    group.userData.floatSpeed = 0.3 + Math.random() * 0.2;
+    scene.add(group);
+    worldObjects.push(group);
+    return group;
+  }
+
+  makeCloud(-15, 4, -20, 1.5);
+  makeCloud(18, 6, -15, 2);
+  makeCloud(-8, 8, -30, 2.5);
+  makeCloud(12, 2, -10, 1);
+  makeCloud(-20, 5, -10, 1.8);
+
+  // Small floating islands
+  function miniIsland(x, y, z) {
+    const g = new THREE.CylinderGeometry(2, 1.5, 1, 6);
+    const m = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ color: 0x7ecb8f }));
+    m.position.set(x, y, z);
+    m.userData.floatOffset = Math.random() * Math.PI * 2;
+    scene.add(m);
+    worldObjects.push(m);
+
+    const tree = new THREE.Mesh(
+      new THREE.ConeGeometry(0.6, 1.5, 6),
+      new THREE.MeshPhongMaterial({ color: 0x2d6a2d })
+    );
+    tree.position.set(x, y + 1.4, z);
+    scene.add(tree);
+    worldObjects.push(tree);
+
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 0.8, 5),
+      new THREE.MeshPhongMaterial({ color: 0x6b3a1f })
+    );
+    trunk.position.set(x, y + 0.55, z);
+    scene.add(trunk);
+    worldObjects.push(trunk);
+  }
+
+  miniIsland(-12, 1, -8);
+  miniIsland(10, 3, -12);
+  miniIsland(-6, -1, -15);
+  miniIsland(16, 0, -5);
+
+  // Trees on main island
+  function addTree(x, z) {
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.2, 1.5, 5),
+      new THREE.MeshPhongMaterial({ color: 0x6b3a1f })
+    );
+    trunk.position.set(x, -2, z);
+    scene.add(trunk);
+    worldObjects.push(trunk);
+
+    const leaves = new THREE.Mesh(
+      new THREE.ConeGeometry(1, 2.5, 6),
+      new THREE.MeshPhongMaterial({ color: 0x3a8a3a })
+    );
+    leaves.position.set(x, -0.5, z);
+    scene.add(leaves);
+    worldObjects.push(leaves);
+  }
+
+  addTree(-5, -2); addTree(5, -3); addTree(-3, 3); addTree(4, 2);
+}
+
+function buildHorrorWorld() {
+  // Dark floor
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(100, 100),
+    new THREE.MeshPhongMaterial({ color: 0x0a0a0a })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -3;
+  scene.add(floor);
+  worldObjects.push(floor);
+
+  // Trees
+  function spookyTree(x, z) {
+    const trunkH = 6 + Math.random() * 4;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1 + Math.random() * 0.1, 0.15, trunkH, 5),
+      new THREE.MeshPhongMaterial({ color: 0x1a0a00 })
+    );
+    trunk.position.set(x, -3 + trunkH / 2, z);
+    trunk.rotation.z = (Math.random() - 0.5) * 0.2;
+    scene.add(trunk);
+    worldObjects.push(trunk);
+
+    // Branches
+    for (let b = 0; b < 3; b++) {
+      const br = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 2 + Math.random(), 4),
+        new THREE.MeshPhongMaterial({ color: 0x1a0a00 })
+      );
+      br.position.set(x + (Math.random() - 0.5) * 1.5, -3 + trunkH * 0.7 + b * 0.5, z);
+      br.rotation.z = (Math.random() - 0.5) * 1.5;
+      br.rotation.x = (Math.random() - 0.5) * 0.5;
+      scene.add(br);
+      worldObjects.push(br);
+    }
+  }
+
+  for (let i = 0; i < 20; i++) {
+    const angle = (i / 20) * Math.PI * 2;
+    const r = 8 + Math.random() * 12;
+    spookyTree(Math.cos(angle) * r, Math.sin(angle) * r);
+  }
+
+  // Glowing eyes pairs
+  for (let i = 0; i < 6; i++) {
+    const eyeX = (Math.random() - 0.5) * 30;
+    const eyeZ = -10 - Math.random() * 20;
+    const eyeY = -1 + Math.random() * 3;
+    const eyeMat = new THREE.MeshPhongMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 2 });
+    [-0.15, 0.15].forEach(dx => {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), eyeMat);
+      eye.position.set(eyeX + dx, eyeY, eyeZ);
+      eye.userData.eyeIndex = i;
+      eye.userData.baseEmissive = 2;
+      scene.add(eye);
+      worldObjects.push(eye);
+    });
+  }
+
+  // Mist/fog circles on ground
+  for (let i = 0; i < 8; i++) {
+    const mist = new THREE.Mesh(
+      new THREE.CircleGeometry(3 + Math.random() * 3, 8),
+      new THREE.MeshBasicMaterial({ color: 0x102510, transparent: true, opacity: 0.4 })
+    );
+    mist.rotation.x = -Math.PI / 2;
+    mist.position.set((Math.random() - 0.5) * 30, -2.9, -5 - Math.random() * 20);
+    scene.add(mist);
+    worldObjects.push(mist);
+  }
+
+  // Green point lights
+  const greenLight = new THREE.PointLight(0x00ff44, 1.5, 15);
+  greenLight.position.set(0, 0, -5);
+  scene.add(greenLight);
+  worldObjects.push(greenLight);
+}
+
+function buildCyberWorld() {
+  // Neon grid floor
+  const floorMat = new THREE.MeshPhongMaterial({
+    color: 0x000820,
+    emissive: 0x001030,
+    emissiveIntensity: 0.5
+  });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100, 20, 20), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -3;
+  scene.add(floor);
+  worldObjects.push(floor);
+
+  // Grid lines
+  const gridMat = new THREE.LineBasicMaterial({ color: 0x0044ff, transparent: true, opacity: 0.3 });
+  const gridH = 20, gridW = 20;
+  for (let i = -gridH; i <= gridH; i += 2) {
+    const pts = [new THREE.Vector3(-gridW, -2.95, i), new THREE.Vector3(gridW, -2.95, i)];
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gridMat);
+    scene.add(line); worldObjects.push(line);
+  }
+  for (let i = -gridW; i <= gridW; i += 2) {
+    const pts = [new THREE.Vector3(i, -2.95, -gridH), new THREE.Vector3(i, -2.95, gridH)];
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gridMat);
+    scene.add(line); worldObjects.push(line);
+  }
+
+  // Buildings
+  function neonBuilding(x, z, w, d, h, color) {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mat = new THREE.MeshPhongMaterial({ color: 0x030318, emissive: 0x010108 });
+    const b = new THREE.Mesh(geo, mat);
+    b.position.set(x, -3 + h / 2, z);
+    scene.add(b); worldObjects.push(b);
+
+    // Edge glow
+    const edges = new THREE.EdgesGeometry(geo);
+    const eline = new THREE.LineSegments(
+      edges,
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 })
+    );
+    eline.position.copy(b.position);
+    scene.add(eline); worldObjects.push(eline);
+
+    // Point light on top
+    const pl = new THREE.PointLight(color, 0.8, 8);
+    pl.position.set(x, -3 + h + 0.5, z);
+    scene.add(pl); worldObjects.push(pl);
+  }
+
+  const colors = [0x00ffff, 0xff00ff, 0xff6600, 0x00ff88, 0xff0088];
+  const buildingDefs = [
+    [-15, -15, 4, 4, 18], [-10, -18, 3, 3, 12], [-20, -10, 5, 3, 15],
+    [15, -15, 4, 4, 20], [10, -18, 3, 3, 10], [20, -10, 5, 5, 14],
+    [-5, -20, 3, 3, 8], [5, -20, 4, 3, 16], [0, -25, 6, 4, 22],
+    [-18, -20, 3, 3, 11], [18, -20, 3, 3, 13]
+  ];
+  buildingDefs.forEach(([x, z, w, d, h], i) => {
+    neonBuilding(x, z, w, d, h, colors[i % colors.length]);
+  });
+
+  // Neon signs (flat planes with emissive)
+  const signColors = [0xff0088, 0x00ffff, 0xffff00];
+  for (let i = 0; i < 5; i++) {
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 0.4),
+      new THREE.MeshPhongMaterial({ color: signColors[i % 3], emissive: signColors[i % 3], emissiveIntensity: 2, side: THREE.DoubleSide })
+    );
+    sign.position.set((Math.random() - 0.5) * 20, -1 + Math.random() * 4, -8 - Math.random() * 10);
+    sign.rotation.y = (Math.random() - 0.5) * 0.5;
+    sign.userData.neonSign = true;
+    sign.userData.signColor = signColors[i % 3];
+    scene.add(sign); worldObjects.push(sign);
+  }
+
+  // Ambient lights
+  const pinkLight = new THREE.PointLight(0xff00ff, 2, 20);
+  pinkLight.position.set(-8, 3, 0);
+  scene.add(pinkLight); worldObjects.push(pinkLight);
+
+  const cyanLight = new THREE.PointLight(0x00ffff, 2, 20);
+  cyanLight.position.set(8, 3, 0);
+  scene.add(cyanLight); worldObjects.push(cyanLight);
+}
+
+function buildParticles(color, worldId) {
+  const count = worldId === 'cyber' ? 200 : 150;
+  const positions = new Float32Array(count * 3);
+  const speeds = [];
+
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 40;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 20 + 2;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 40 - 10;
+    speeds.push(0.005 + Math.random() * 0.015);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color,
+    size: worldId === 'cyber' ? 0.12 : 0.08,
+    transparent: true,
+    opacity: worldId === 'horror' ? 0.3 : 0.6,
+    sizeAttenuation: true
+  });
+
+  orbParticles = new THREE.Points(geo, mat);
+  orbParticles.userData.speeds = speeds;
+  scene.add(orbParticles);
+}
+
+// ============================================================
+// ANIMATION LOOP
+// ============================================================
+function animate() {
+  animFrameId = requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Orb animation
+  if (orb) {
+    orb.rotation.y = t * 0.8;
+    orb.rotation.x = t * 0.3;
+    orb.position.y = 1 + Math.sin(t * 1.5) * 0.3;
+    const hoverScale = orbHovered ? 1.15 : 1;
+    orb.scale.setScalar(orb.scale.x + (hoverScale - orb.scale.x) * 0.1);
+    if (orbHovered) {
+      orb.material.emissiveIntensity = 0.6 + Math.sin(t * 5) * 0.2;
+    } else {
+      orb.material.emissiveIntensity = 0.4 + Math.sin(t * 2) * 0.1;
+    }
+    // Sync hit sphere
+    const hitSph = scene.children.find(c => c.userData.isOrbHit);
+    if (hitSph) hitSph.position.y = orb.position.y;
+  }
+
+  if (orbRing) {
+    orbRing.rotation.z = t * 1.2;
+    orbRing.rotation.y = t * 0.4;
+    orbRing.position.y = 1 + Math.sin(t * 1.5) * 0.3;
+  }
+
+  // Camera drift
+  camera.position.x += (mouseX * 2 - camera.position.x) * 0.02;
+  camera.position.y += (mouseY * 1 + 2 - camera.position.y) * 0.02;
+  camera.lookAt(0, 1, 0);
+
+  // World-specific animations
+  if (state.currentWorld === 'sky') animateSky(t);
+  else if (state.currentWorld === 'horror') animateHorror(t);
+  else if (state.currentWorld === 'cyber') animateCyber(t);
+
+  // Particles
+  if (orbParticles) {
+    const pos = orbParticles.geometry.attributes.position;
+    const speeds = orbParticles.userData.speeds;
+    const count = pos.count;
+    for (let i = 0; i < count; i++) {
+      pos.array[i * 3 + 1] += speeds[i];
+      if (pos.array[i * 3 + 1] > 14) pos.array[i * 3 + 1] = -8;
+    }
+    pos.needsUpdate = true;
+    orbParticles.rotation.y = t * 0.03;
+  }
+
+  renderer.render(scene, camera);
+}
+
+function animateSky(t) {
+  worldObjects.forEach(obj => {
+    if (obj.userData.floatOffset !== undefined) {
+      obj.position.y = obj.position.y + Math.sin(t * obj.userData.floatSpeed + obj.userData.floatOffset) * 0.002;
+      obj.position.x += Math.sin(t * 0.1 + obj.userData.floatOffset) * 0.001;
+    }
+  });
+}
+
+function animateHorror(t) {
+  worldObjects.forEach(obj => {
+    if (obj.userData.eyeIndex !== undefined) {
+      obj.material.emissiveIntensity = 1.5 + Math.sin(t * 3 + obj.userData.eyeIndex) * 0.8;
+    }
+  });
+}
+
+function animateCyber(t) {
+  worldObjects.forEach(obj => {
+    if (obj.userData.neonSign) {
+      obj.material.emissiveIntensity = 1.5 + Math.sin(t * 5 + obj.position.x) * 0.8;
+    }
+  });
+}
+
+// ============================================================
+// TASK SYSTEM
+// ============================================================
+function getTaskPool() {
+  let pool;
+  if (state.currentMode === 'chill') pool = [...TASKS.chill];
+  else if (state.currentMode === 'chaos') pool = [...TASKS.chaos];
+  else if (state.currentMode === 'social') pool = [...TASKS.social];
+  else pool = ALL_TASKS;
+
+  // Add legendary tasks if level >= 5
+  if (state.level >= 5) pool = [...pool, ...TASKS.legendary];
+
+  // Filter out completed and skipped tasks
+  const used = new Set([...state.completedTasks, ...state.skippedTasks]);
+  const filtered = pool.filter(t => !used.has(t));
+
+  // If we've done all tasks in mode, allow repeats (minus last 5)
+  if (filtered.length === 0) {
+    const recent = new Set(state.completedTasks.slice(-5));
+    return pool.filter(t => !recent.has(t));
+  }
+
+  return filtered;
+}
+
+function getCategoryFromTask(task) {
+  if (task.includes('⚡ LEGENDARY')) return { label: '⚡ LEGENDARY', color: '#ffbe0b' };
+  if (TASKS.chill.includes(task)) return { label: '😌 CHILL', color: '#06ffa5' };
+  if (TASKS.chaos.includes(task)) return { label: '💥 CHAOS', color: '#ff006e' };
+  if (TASKS.social.includes(task)) return { label: '👥 SOCIAL', color: '#00f5ff' };
+  return { label: '🎯 TASK', color: '#ffffff' };
+}
+
+function spawnTask() {
+  const pool = getTaskPool();
+  if (pool.length === 0) {
+    showPopup("🤯 You've done ALL the tasks! Respect++", 3000);
+    return;
+  }
+
+  const task = pool[Math.floor(Math.random() * pool.length)];
+  state.currentTask = task;
+  state.taskActive = true;
+
+  const cat = getCategoryFromTask(task);
+  document.getElementById('task-category').textContent = cat.label;
+  document.getElementById('task-category').style.color = cat.color;
+  document.getElementById('task-text').textContent = task.replace('⚡ LEGENDARY: ', '');
+  document.getElementById('skip-count').textContent = state.skipsLeft;
+
+  const card = document.getElementById('task-card');
+  card.classList.add('show');
+  document.getElementById('orb-hint').style.opacity = '0';
+
+  // Orb pulse on spawn
+  if (orb) {
+    orb.material.emissiveIntensity = 1.5;
+    setTimeout(() => { orb.material.emissiveIntensity = 0.4; }, 300);
+  }
+
+  // Random popup reactions
+  const reactions = [
+    "oof this one's real 💀", "no way you're doing this 😭",
+    "you got this fr fr 🔥", "the universe chose this for you 🌌",
+    "bro the algorithm said so 👀", "destiny hits different 😤"
+  ];
+  if (Math.random() < 0.4) {
+    setTimeout(() => showPopup(reactions[Math.floor(Math.random() * reactions.length)], 2000), 800);
+  }
+
+  // Rare glitch event
+  if (Math.random() < 0.08) triggerGlitch();
+}
+
+function completeTask() {
+  if (!state.currentTask) return;
+
+  state.completedTasks.push(state.currentTask);
+  const xpGain = state.currentTask.includes('LEGENDARY') ? 50 :
+    state.currentMode === 'chaos' ? 30 : state.currentMode === 'social' ? 25 : 20;
+  addXP(xpGain);
+  state.done++;
+  document.getElementById('stat-done').textContent = state.done;
+
+  const reactions = [
+    "bro really did that 💀", "absolute legend 👑", "W behavior 🏆",
+    "you ate and left no crumbs 🫡", "top 1% human 🔥",
+    "the prophecy is fulfilled ✨", "certified real one 💎",
+    "society thanks you 🙌", "that just happened. we all witnessed it",
+    "main character behavior right here 🎬"
+  ];
+  showPopup(reactions[Math.floor(Math.random() * reactions.length)], 2500);
+
+  closeTask();
+  checkWorldUnlock();
+  saveState();
+
+  // Orb celebration
+  if (orb) {
+    let bounces = 0;
+    const bounce = setInterval(() => {
+      orb.material.emissiveIntensity = bounces % 2 === 0 ? 1.5 : 0.4;
+      bounces++;
+      if (bounces > 6) clearInterval(bounce);
+    }, 100);
+  }
+}
+
+function skipTask() {
+  if (state.skipsLeft <= 0) {
+    showPopup("❌ No skips left! Be brave 😤", 2000);
+    return;
+  }
+  state.skipsLeft--;
+  state.skippedTasks.push(state.currentTask);
+  document.getElementById('skip-count').textContent = state.skipsLeft;
+  closeTask();
+  saveState();
+  showPopup("skip used... coward 💀 (jk you're valid)", 2000);
+}
+
+function chaosBoost() {
+  // Force chaos mode task
+  const pool = TASKS.chaos.filter(t => !state.completedTasks.includes(t) && !state.skippedTasks.includes(t));
+  if (pool.length === 0) { showPopup("Chaos pool empty! You're too unhinged 🔥", 2000); return; }
+  const task = pool[Math.floor(Math.random() * pool.length)];
+  state.currentTask = task;
+  document.getElementById('task-text').textContent = task;
+  document.getElementById('task-category').textContent = '🔥 CHAOS BOOST';
+  document.getElementById('task-category').style.color = '#ff006e';
+
+  triggerGlitch();
+  showPopup("CHAOS ENGAGED 💥 no going back now", 1500);
+}
+
+function closeTask() {
+  state.currentTask = null;
+  state.taskActive = false;
+  const card = document.getElementById('task-card');
+  card.classList.remove('show');
+  setTimeout(() => {
+    document.getElementById('orb-hint').style.opacity = '1';
+  }, 1000);
+}
+
+// ============================================================
+// XP / LEVEL SYSTEM
+// ============================================================
+function addXP(amount) {
+  state.xp += amount;
+  document.getElementById('stat-xp').textContent = state.xp;
+
+  while (state.xp >= state.xpToNext) {
+    state.xp -= state.xpToNext;
+    state.level++;
+    state.xpToNext = Math.floor(100 * Math.pow(1.3, state.level - 1));
+    levelUpEvent();
+  }
+
+  document.getElementById('stat-level').textContent = state.level;
+  const pct = (state.xp / state.xpToNext) * 100;
+  document.getElementById('xp-bar-fill').style.width = pct + '%';
+}
+
+function levelUpEvent() {
+  const overlay = document.getElementById('levelup-overlay');
+  document.getElementById('levelup-text').textContent = `LEVEL ${state.level}!`;
+  overlay.classList.add('show');
+  overlay.addEventListener('click', () => overlay.classList.remove('show'), { once: true });
+  setTimeout(() => overlay.classList.remove('show'), 2500);
+  showPopup(`⚡ LEVEL ${state.level}! New power unlocked 🔓`, 3000);
+  if (state.level >= 3) state.skipsLeft = Math.min(state.skipsLeft + 1, 5); // restore skip
+}
+
+// ============================================================
+// WORLD SWITCHING
+// ============================================================
+const WORLD_UNLOCK_LEVELS = { sky: 0, horror: 3, cyber: 5 };
+const WORLD_NAMES = { sky: 'Chill Sky Island ☁️', horror: 'Dark Horror Forest 🌲', cyber: 'Neon Cyber City 🌆' };
+
+function tryWorld(worldId) {
+  const required = WORLD_UNLOCK_LEVELS[worldId];
+  if (state.unlockedWorlds.includes(worldId)) {
+    switchWorld(worldId);
+  } else if (state.level >= required) {
+    state.unlockedWorlds.push(worldId);
+    document.getElementById(`btn-${worldId}`).classList.remove('locked');
+    document.getElementById('unlock-msg').textContent = `${WORLD_NAMES[worldId]} is now yours to explore!`;
+    document.getElementById('unlock-toast').classList.add('show');
+    setTimeout(() => switchWorld(worldId), 500);
+    saveState();
+  } else {
+    showPopup(`🔒 Reach Level ${required} to unlock this world!`, 2500);
+  }
+}
+
+function switchWorld(worldId) {
+  if (state.currentWorld === worldId) return;
+  if (!state.unlockedWorlds.includes(worldId)) {
+    tryWorld(worldId);
+    return;
+  }
+
+  const transition = document.getElementById('world-transition');
+  transition.classList.add('in');
+
+  setTimeout(() => {
+    // Remove old world
+    worldObjects.forEach(o => scene.remove(o));
+    if (orb) scene.remove(orb);
+    if (orbRing) scene.remove(orbRing);
+    if (orbParticles) scene.remove(orbParticles);
+
+    state.currentWorld = worldId;
+    buildWorld(worldId);
+
+    // Update active btn
+    document.querySelectorAll('.world-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-world="${worldId}"]`).classList.add('active');
+
+    transition.classList.remove('in');
+    showPopup(`Entered ${WORLD_NAMES[worldId]} 🌍`, 2000);
+    saveState();
+  }, 500);
+}
+
+function checkWorldUnlock() {
+  if (state.level >= 3 && !state.unlockedWorlds.includes('horror')) {
+    state.unlockedWorlds.push('horror');
+    document.getElementById('btn-horror').classList.remove('locked');
+    showUnlockToast('horror');
+  }
+  if (state.level >= 5 && !state.unlockedWorlds.includes('cyber')) {
+    state.unlockedWorlds.push('cyber');
+    document.getElementById('btn-cyber').classList.remove('locked');
+    showUnlockToast('cyber');
+  }
+}
+
+function showUnlockToast(worldId) {
+  document.getElementById('unlock-msg').textContent = `${WORLD_NAMES[worldId]} is now yours to explore!`;
+  document.getElementById('unlock-toast').classList.add('show');
+}
+
+function closeUnlock() {
+  document.getElementById('unlock-toast').classList.remove('show');
+}
+
+// ============================================================
+// MODE SWITCHING
+// ============================================================
+function setMode(mode) {
+  state.currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  const modeNames = { chill: '😌 Chill Mode', chaos: '💥 Chaos Mode', social: '👥 Social Mode' };
+  showPopup(`${modeNames[mode]} activated`, 1500);
+  saveState();
+}
+
+// ============================================================
+// EFFECTS
+// ============================================================
+function triggerGlitch() {
+  const glitch = document.getElementById('glitch-overlay');
+  glitch.classList.add('active');
+  setTimeout(() => glitch.classList.remove('active'), 500);
+
+  // Briefly distort orb
+  if (orb) {
+    const orig = orb.material.color.getHex();
+    orb.material.color.setHex(0xff0000);
+    setTimeout(() => orb.material.color.setHex(orig), 300);
+  }
+}
+
+function showPopup(msg, duration = 2000) {
+  const popup = document.getElementById('popup');
+  popup.textContent = msg;
+  popup.classList.add('show');
+  clearTimeout(popup._timeout);
+  popup._timeout = setTimeout(() => popup.classList.remove('show'), duration);
+}
+
+// ============================================================
+// STREAK
+// ============================================================
+function checkStreak() {
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+  if (!state.lastPlayed) {
+    state.streak = 1;
+  } else if (state.lastPlayed === today) {
+    // Already played today
+  } else if (state.lastPlayed === yesterday) {
+    state.streak++;
+  } else {
+    state.streak = 1;
+  }
+
+  if (state.streak > 1) {
+    const badge = document.getElementById('streak-badge');
+    document.getElementById('streak-val').textContent = state.streak;
+    badge.classList.add('show');
+  }
+
+  state.lastPlayed = today;
+  saveState();
+}
+
+// ============================================================
+// CURSOR
+// ============================================================
+document.addEventListener('mousemove', (e) => {
+  const cursor = document.getElementById('cursor');
+  const dot = document.getElementById('cursor-dot');
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+  dot.style.left = e.clientX + 'px';
+  dot.style.top = e.clientY + 'px';
+});
+
+// ============================================================
+// INTRO PARTICLES
+// ============================================================
+function buildIntroParticles() {
+  const container = document.getElementById('intro-particles');
+  for (let i = 0; i < 50; i++) {
+    const p = document.createElement('div');
+    p.className = 'ipart';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (3 + Math.random() * 6) + 's';
+    p.style.animationDelay = (Math.random() * 5) + 's';
+    p.style.width = p.style.height = (1 + Math.random() * 3) + 'px';
+    p.style.background = ['#00f5ff', '#ff006e', '#ffbe0b', '#06ffa5'][Math.floor(Math.random() * 4)];
+    container.appendChild(p);
+  }
+}
+
+// ============================================================
+// EASTER EGGS
+// ============================================================
+let konamiCode = [];
+const KONAMI = [38,38,40,40,37,39,37,39,66,65];
+document.addEventListener('keydown', (e) => {
+  konamiCode.push(e.keyCode);
+  if (konamiCode.length > 10) konamiCode.shift();
+  if (JSON.stringify(konamiCode) === JSON.stringify(KONAMI)) {
+    showPopup('🥚 EASTER EGG! You know the code. Legendary status granted 👑', 4000);
+    addXP(100);
+    triggerGlitch();
+    konamiCode = [];
+  }
+});
+
+// Random glitch events
+setInterval(() => {
+  if (Math.random() < 0.03 && state.taskActive) {
+    triggerGlitch();
+    const weirdMessages = [
+      "⚠️ REALITY BUFFER OVERFLOW", "ERROR: TOO MUCH DRIP",
+      "WARNING: BASED LEVELS CRITICAL", "SYSTEM: task completed in parallel universe",
+      "ALERT: main character detected 🎬", "NOTICE: the prophecy accelerates"
+    ];
+    showPopup(weirdMessages[Math.floor(Math.random() * weirdMessages.length)], 2000);
+  }
+}, 15000);
+
+// ============================================================
+// GAME START
+// ============================================================
+function startGame() {
+  gameStarted = true;
+  const intro = document.getElementById('intro');
+  intro.style.opacity = '0';
+  intro.style.transform = 'scale(1.05)';
+  setTimeout(() => {
+    intro.style.display = 'none';
+    document.body.style.cursor = 'none';
+  }, 800);
+  checkStreak();
+
+  // Update UI from saved state
+  document.getElementById('stat-level').textContent = state.level;
+  document.getElementById('stat-xp').textContent = state.xp;
+  document.getElementById('stat-done').textContent = state.done;
+  document.getElementById('skip-count').textContent = state.skipsLeft;
+  const pct = (state.xp / state.xpToNext) * 100;
+  document.getElementById('xp-bar-fill').style.width = pct + '%';
+
+  // Update world buttons from saved unlock state
+  if (state.unlockedWorlds.includes('horror')) document.getElementById('btn-horror').classList.remove('locked');
+  if (state.unlockedWorlds.includes('cyber')) document.getElementById('btn-cyber').classList.remove('locked');
+
+  showPopup("Welcome back to Reality Spinner 🌀", 2500);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+loadState();
+buildIntroParticles();
+initThree();
+</script>
+</body>
+</html>
